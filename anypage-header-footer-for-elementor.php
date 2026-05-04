@@ -12,6 +12,7 @@
  * Requires at least: 5.0
  * Tested up to: 6.9
  * Requires PHP: 8.0
+ * Requires Plugins: elementor
  * Stable tag: 1.0.0
  * Icon: icon.png
  */

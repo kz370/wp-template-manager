@@ -1,5 +1,5 @@
 === AnyPage Header Footer for Elementor ===
-Contributors: kz370
+Contributors: kzdev
 Tags: elementor, header, footer, templates
 Requires at least: 5.0
 Tested up to: 6.9
@@ -20,7 +20,7 @@ Create and manage custom page templates with Elementor header and footer support
 * Create reusable custom page templates
 * Assign specific pages or posts as headers and footers
 * Manage templates from one simple admin interface
-* Choose between file-based or database storage
+* Store templates in the WordPress database (no template file generation)
 
 ---
 
@@ -34,25 +34,20 @@ Create and manage custom page templates with Elementor header and footer support
   * “footer” for footers
 * Real-time duplicate name validation
 * Searchable header and footer selection
-* Two storage modes (File or Database)
+* Database-only storage
 * View where templates are used across your site
 * Works with all public post types
 * Safe fallback to theme header/footer
 
 ---
 
-## 🧠 Storage Modes
+## 🧠 Storage
 
-### Real File (Recommended)
+Templates are stored in the database only.
 
-* Saves templates inside your active theme
-* Remains available even if the plugin is removed
-
-### Virtual (Database)
-
-* Stores templates in the database
-* No files created
-* Quick and easy setup
+* No PHP template files are generated in theme or plugin directories
+* No direct file editing required
+* Faster and safer updates from the admin UI
 
 ---
 
@@ -63,8 +58,7 @@ Create and manage custom page templates with Elementor header and footer support
 1. Go to **WP Admin → AnyPage Header & Footer**
 2. Click **Add Template**
 3. Enter a name and select header/footer
-4. Choose storage type
-5. Save
+4. Save
 
 ---
 

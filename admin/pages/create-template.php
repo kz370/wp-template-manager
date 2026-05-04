@@ -11,15 +11,11 @@ if (!defined('ABSPATH')) {
 $template_name = '';
 $header_id = 0;
 $footer_id = 0;
-$storage_type = 'file';
+$storage_type = 'database';
 $errors = array();
 $success_message = '';
 $editing_slug = '';
 $is_edit_mode = false;
-$theme_dir = get_stylesheet_directory();
-$write_directory = ($theme_dir && is_dir($theme_dir))
-    ? trailingslashit($theme_dir)
-    : trailingslashit(TEMPLATE_MANAGER_PLUGIN_DIR . 'templates');
 
 $available_headers = tm_get_available_headers();
 $available_footers = tm_get_available_footers();
@@ -60,7 +56,7 @@ if (
         $template_name = $template['name'];
         $header_id = (int) $template['header_id'];
         $footer_id = (int) $template['footer_id'];
-        $storage_type = ('database' === $template['source']) ? 'database' : 'file';
+        $storage_type = 'database';
         $editing_slug = $template['slug'];
         $is_edit_mode = true;
         $open_modal = true;
@@ -77,16 +73,12 @@ if (
     $template_name = esc_html(sanitize_text_field(wp_unslash($_POST['tm_template_name'] ?? '')));
     $header_id = esc_attr(absint(wp_unslash($_POST['tm_header_id'] ?? 0)));
     $footer_id = esc_attr(absint(wp_unslash($_POST['tm_footer_id'] ?? 0)));
-    $storage_type = esc_attr(sanitize_text_field(wp_unslash($_POST['tm_storage_type'] ?? 'file')));
+    $storage_type = 'database';
     $editing_slug = esc_attr(sanitize_file_name(wp_unslash($_POST['tm_editing_slug'] ?? '')));
     $is_edit_mode = '' !== $editing_slug;
 
     if ('' === $template_name) {
         $errors[] = esc_html__('Template name is required.', 'anypage-header-footer-for-elementor');
-    }
-
-    if (!in_array($storage_type, array('file', 'database'), true)) {
-        $storage_type = 'file';
     }
 
     $existing_template = null;
@@ -95,6 +87,9 @@ if (
             $errors[] = esc_html__('The selected template no longer exists.', 'anypage-header-footer-for-elementor');
         } else {
             $existing_template = $templates_by_slug[$editing_slug];
+            if ('database' !== $existing_template['source']) {
+                $errors[] = esc_html__('Only database templates can be edited.', 'anypage-header-footer-for-elementor');
+            }
         }
     }
 
@@ -113,75 +108,28 @@ if (
 
     if (empty($errors)) {
         $db_templates = get_option('tm_database_templates', []);
-        $generated_template = TM_Template_Manager::generate_elementor_template($template_name, $header_id, $footer_id);
-        $new_slug = key($generated_template['files']);
 
-        if ($is_edit_mode && $existing_template && 'database' === $existing_template['source']) {
+        if ($is_edit_mode && $existing_template) {
             unset($db_templates[$editing_slug]);
         }
 
-        if ($is_edit_mode && $existing_template && 'database' !== $existing_template['source']) {
-            $old_slug_base = str_replace(array('template-cu-', '.php'), '', $editing_slug);
-            $old_files = array(
-                'template-cu-' . $old_slug_base . '.php',
-                'header-' . $old_slug_base . '.php',
-                'footer-' . $old_slug_base . '.php',
-            );
+        $db_templates[$new_slug] = array(
+            'name' => $template_name,
+            'header_id' => $header_id,
+            'footer_id' => $footer_id,
+        );
 
-            foreach ($old_files as $old_file) {
-                $old_path = $write_directory . $old_file;
-                if (file_exists($old_path)) {
-                    wp_delete_file($old_path);
-                }
-            }
-        }
-
-        if ('database' === $storage_type) {
-            $db_templates[$new_slug] = array(
-                'name' => $template_name,
-                'header_id' => $header_id,
-                'footer_id' => $footer_id,
-            );
-            update_option('tm_database_templates', $db_templates);
-            $success_message = $is_edit_mode
-                ? esc_html__('Template updated.', 'anypage-header-footer-for-elementor')
-                : esc_html__('Template saved.', 'anypage-header-footer-for-elementor');
-        } else {
-            if ($is_edit_mode && $existing_template && 'database' === $existing_template['source']) {
-                update_option('tm_database_templates', $db_templates);
-            }
-
-            wp_mkdir_p($write_directory);
-
-            $files_created = array();
-            foreach ($generated_template['files'] as $filename => $content) {
-                $file_path = $write_directory . $filename;
-                if (false !== file_put_contents($file_path, $content)) {
-                    $files_created[] = $filename;
-                }
-            }
-
-            if (!empty($files_created)) {
-                $success_message = $is_edit_mode
-                    ? esc_html__('Template updated.', 'anypage-header-footer-for-elementor')
-                    : sprintf(
-                        /* translators: %s: File names */
-                        esc_html__('Created: %s', 'anypage-header-footer-for-elementor'),
-                        esc_html(implode(', ', $files_created))
-                    );
-            } else {
-                $errors[] = $is_edit_mode
-                    ? /* translators: %s: File names */ esc_html__('Failed to update template files.', 'anypage-header-footer-for-elementor')
-                    : /* translators: %s: File names */ esc_html__('Failed to create files.', 'anypage-header-footer-for-elementor');
-            }
-        }
+        update_option('tm_database_templates', $db_templates);
+        $success_message = $is_edit_mode
+            ? esc_html__('Template updated.', 'anypage-header-footer-for-elementor')
+            : esc_html__('Template saved.', 'anypage-header-footer-for-elementor');
     }
 
     if (empty($errors)) {
         $template_name = '';
         $header_id = 0;
         $footer_id = 0;
-        $storage_type = 'file';
+        $storage_type = 'database';
         $editing_slug = '';
         $is_edit_mode = false;
         $open_modal = false;
@@ -211,23 +159,7 @@ if (
             /* translators: %s: Template name */
             $success_message = esc_html__('Template removed.', 'anypage-header-footer-for-elementor');
         } else {
-            $slug_base = str_replace(array('template-cu-', '.php'), '', $template_slug);
-
-            $files_to_delete = array(
-                'template-cu-' . $slug_base . '.php',
-                'header-' . $slug_base . '.php',
-                'footer-' . $slug_base . '.php',
-            );
-
-            foreach ($files_to_delete as $file) {
-                $path = $write_directory . $file;
-                if (file_exists($path)) {
-                    wp_delete_file($path);
-                }
-            }
-
-            /* translators: %s: Template name */
-            $success_message = esc_html__('Template files deleted.', 'anypage-header-footer-for-elementor');
+            $errors[] = esc_html__('Only database templates can be deleted from this screen.', 'anypage-header-footer-for-elementor');
         }
 
         $existing_templates = tm_get_registered_templates();
@@ -399,8 +331,8 @@ $existing_template_slugs = array_map(
                                 <?php
                                 $template_type = ('database' === $template['source'])
                                     ? esc_html__('Virtual (DB)', 'anypage-header-footer-for-elementor')
-                                    : esc_html__('Real File', 'anypage-header-footer-for-elementor');
-                                $can_manage = !empty($template['has_theme_copy']) || !empty($template['has_db_copy']);
+                                    : esc_html__('Legacy File (Read-only)', 'anypage-header-footer-for-elementor');
+                                $can_manage = !empty($template['has_db_copy']);
                                 $usage_count = isset($template_usage_counts[$template['slug']])
                                     ? (int) $template_usage_counts[$template['slug']]
                                     : 0;
@@ -444,7 +376,7 @@ $existing_template_slugs = array_map(
                                                 data-template-name="<?php echo esc_attr($template['name']); ?>"
                                                 data-header-id="<?php echo esc_attr((string) $template['header_id']); ?>"
                                                 data-footer-id="<?php echo esc_attr((string) $template['footer_id']); ?>"
-                                                data-storage="<?php echo esc_attr('database' === $template['source'] ? 'database' : 'file'); ?>"
+                                                data-storage="database"
                                                 aria-label="<?php echo esc_attr(sprintf(/* translators: %s: Template name */__('Edit %s', 'anypage-header-footer-for-elementor'), esc_html($template['name']))); ?>"
                                                 title="<?php echo esc_attr__('Edit template', 'anypage-header-footer-for-elementor'); ?>">
                                                 <span class="dashicons dashicons-edit"></span>
@@ -564,15 +496,7 @@ $existing_template_slugs = array_map(
 
                     <div class="tm-field tm-storage-field">
                         <span><?php esc_html_e('Template Type', 'anypage-header-footer-for-elementor'); ?></span>
-                        <div class="tm-storage-toggle">
-                            <span class="tm-toggle-label"><?php esc_html_e('Real File', 'anypage-header-footer-for-elementor'); ?></span>
-                            <label class="tm-switch">
-                                <input type="checkbox" id="tm_storage_toggle" <?php checked($storage_type, 'database'); ?>>
-                                <span class="tm-slider"></span>
-                            </label>
-                            <span class="tm-toggle-label"><?php esc_html_e('Virtual (DB)', 'anypage-header-footer-for-elementor'); ?></span>
-                        </div>
-                        <p class="tm-help-note"><?php esc_html_e('Real File is safer for long-term use: templates stay in your theme, so uninstalling this plugin will not remove them.', 'anypage-header-footer-for-elementor'); ?></p>
+                        <p class="tm-help-note"><?php esc_html_e('Templates are stored in the database only. No PHP template files are written to your theme or plugin directories.', 'anypage-header-footer-for-elementor'); ?></p>
                         <input type="hidden" name="tm_storage_type" id="tm_storage_type_input" value="<?php echo esc_attr($storage_type); ?>">
                     </div>
                 </div>
@@ -613,7 +537,6 @@ $existing_template_slugs = array_map(
         const modal = document.querySelector('.tm-modal');
         const usageModal = document.querySelector('.tm-usage-modal');
         const templateForm = document.getElementById('tm-template-form');
-        const toggle = document.getElementById('tm_storage_toggle');
         const hiddenInput = document.getElementById('tm_storage_type_input');
         const closeButtons = document.querySelectorAll('[data-tm-close-modal]');
         const openButtons = document.querySelectorAll('[data-tm-open-modal]');
@@ -769,12 +692,6 @@ $existing_template_slugs = array_map(
             setComboboxValue(name, state.hidden.value || '0');
         }
 
-        function updateStorageValue() {
-            if (toggle && hiddenInput) {
-                hiddenInput.value = toggle.checked ? 'database' : 'file';
-            }
-        }
-
         function resetEditMode() {
             editingSlugInput.value = '';
             modalTitle.textContent = 'Add Template';
@@ -782,8 +699,9 @@ $existing_template_slugs = array_map(
             templateNameInput.value = '';
             setComboboxValue('header', '0');
             setComboboxValue('footer', '0');
-            toggle.checked = false;
-            updateStorageValue();
+            if (hiddenInput) {
+                hiddenInput.value = 'database';
+            }
             validateTemplateNameDuplicate();
         }
 
@@ -798,8 +716,9 @@ $existing_template_slugs = array_map(
             templateNameInput.value = button.getAttribute('data-template-name') || '';
             setComboboxValue('header', button.getAttribute('data-header-id') || '0');
             setComboboxValue('footer', button.getAttribute('data-footer-id') || '0');
-            toggle.checked = (button.getAttribute('data-storage') || 'file') === 'database';
-            updateStorageValue();
+            if (hiddenInput) {
+                hiddenInput.value = 'database';
+            }
 
             modalTitle.textContent = 'Edit Template';
             submitLabel.textContent = 'Save Changes';
@@ -1017,9 +936,8 @@ $existing_template_slugs = array_map(
             });
         }
 
-        if (toggle) {
-            toggle.addEventListener('change', updateStorageValue);
-            updateStorageValue();
+        if (hiddenInput) {
+            hiddenInput.value = 'database';
         }
 
         if (modal && modal.getAttribute('data-state') === 'open') {

@@ -292,35 +292,15 @@ function tm_get_template_file_by_slug($slug)
 }
 
 /**
- * Create custom template file in theme directory
+ * Deprecated: template creation now uses database storage only.
  */
 function tm_create_custom_template($slug, $content)
 {
-    // Get active theme directory
-    $theme_dir = get_stylesheet_directory();
+    unset($slug, $content);
 
-    if (!$theme_dir) {
-        // Fallback to plugin's templates directory for development
-        $theme_dir = TEMPLATE_MANAGER_PLUGIN_DIR . 'templates/';
-    }
-
-    // Create directory if it doesn't exist
-    if (!file_exists($theme_dir)) {
-        wp_mkdir_p($theme_dir);
-    }
-
-    $template_file = trailingslashit($theme_dir) . $slug;
-
-    // Save template file
-    $result = file_put_contents($template_file, $content);
-
-    return $result !== false ? [
-        'success' => true,
-        'file' => $template_file,
-        'url' => get_theme_file_uri(dirname($slug)) . dirname(pathinfo($slug, PATHINFO_FILENAME)) . '/',
-    ] : [
+    return [
         'success' => false,
-        'error' => 'Failed to create template file',
+        'error' => 'Filesystem template creation is disabled. Use database template storage.',
     ];
 }
 
