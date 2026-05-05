@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class TM_Template_Manager
+class Anyphefo_Template_Manager
 {
 
     /**
@@ -34,7 +34,7 @@ class TM_Template_Manager
      */
     public static function register_page_templates($templates, $theme, $post, $post_type)
     {
-        $available_templates = tm_get_registered_templates();
+        $available_templates = anyphefo_get_registered_templates();
 
         foreach ($available_templates as $template) {
             $templates[$template['slug']] = $template['name'];
@@ -58,7 +58,7 @@ class TM_Template_Manager
             return $template;
         }
 
-        $template_data = tm_get_template_file_by_slug($slug);
+        $template_data = anyphefo_get_template_file_by_slug($slug);
 
         if (!$template_data) {
             return $template;
@@ -148,21 +148,28 @@ class TM_Template_Manager
         // Load on any of our plugin pages (page param check is most reliable)
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading admin page slug only, not processing form data.
         $page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
-        $is_tm_page = in_array($page, array('tm-templates', 'tm-create-template', 'tm-template-list'), true)
+        $is_anyphefo_page = in_array($page, array('anyphefo-templates', 'anyphefo-create-template', 'anyphefo-template-list'), true)
             || in_array($hook, array('post-new.php', 'post.php'), true);
 
-        if ($is_tm_page) {
+        if ($is_anyphefo_page) {
             wp_enqueue_style(
-                'tm-google-fonts',
+                'anyphefo-google-fonts',
                 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap',
                 array(),
-                TEMPLATE_MANAGER_VERSION
+                ANYPHEFO_VERSION
             );
             wp_enqueue_style(
-                'tm-admin-style',
-                TEMPLATE_MANAGER_PLUGIN_URL . 'admin/css/admin.css',
-                array('tm-google-fonts'),
-                TEMPLATE_MANAGER_VERSION
+                'anyphefo-admin-style',
+                ANYPHEFO_PLUGIN_URL . 'admin/css/admin.css',
+                array('anyphefo-google-fonts'),
+                ANYPHEFO_VERSION
+            );
+            wp_enqueue_script(
+                'anyphefo-admin-script',
+                ANYPHEFO_PLUGIN_URL . 'admin/js/admin.js',
+                array(),
+                ANYPHEFO_VERSION,
+                true
             );
         }
     }
@@ -177,7 +184,7 @@ class TM_Template_Manager
             'Anypage Header & Footer',
             'Anypage Header & Footer',
             'manage_options',
-            'tm-templates',
+            'anyphefo-templates',
             array(self::class, 'render_admin_page'),
             'dashicons-layout',
             65
@@ -189,7 +196,7 @@ class TM_Template_Manager
      */
     public static function render_admin_page()
     {
-        include TEMPLATE_MANAGER_PLUGIN_DIR . 'admin/pages/create-template.php';
+        include ANYPHEFO_PLUGIN_DIR . 'admin/pages/create-template.php';
     }
 
     /**
@@ -197,7 +204,7 @@ class TM_Template_Manager
      */
     public static function render_create_template()
     {
-        wp_safe_redirect(admin_url('admin.php?page=tm-templates'));
+        wp_safe_redirect(admin_url('admin.php?page=anyphefo-templates'));
         exit;
     }
 
@@ -206,7 +213,7 @@ class TM_Template_Manager
      */
     public static function render_template_list()
     {
-        wp_safe_redirect(admin_url('admin.php?page=tm-templates'));
+        wp_safe_redirect(admin_url('admin.php?page=anyphefo-templates'));
         exit;
     }
 
@@ -280,21 +287,21 @@ class TM_Template_Manager
             . '<body <?php body_class(); ?>>' . "\n"
             . '<?php wp_body_open(); ?>' . "\n\n"
             . '<?php' . "\n"
-            . '$tm_has_custom_header = false;' . "\n\n"
+            . '$anyphefo_has_custom_header = false;' . "\n\n"
             . 'if (' . $header_id . ') {' . "\n"
-            . '    $tm_document = class_exists(\'\Elementor\Plugin\') ? \Elementor\Plugin::instance()->documents->get(' . $header_id . ') : null;' . "\n\n"
-            . '    if ($tm_document && $tm_document->is_built_with_elementor()) {' . "\n"
+            . '    $anyphefo_document = class_exists(\'\Elementor\Plugin\') ? \Elementor\Plugin::instance()->documents->get(' . $header_id . ') : null;' . "\n\n"
+            . '    if ($anyphefo_document && $anyphefo_document->is_built_with_elementor()) {' . "\n"
             . '        echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display(' . $header_id . ');' . "\n"
-            . '        $tm_has_custom_header = true;' . "\n"
+            . '        $anyphefo_has_custom_header = true;' . "\n"
             . '    } else {' . "\n"
             . '        $header_post = get_post(' . $header_id . ');' . "\n"
             . '        if ($header_post instanceof WP_Post) {' . "\n"
             . '            echo apply_filters(\'the_content\', $header_post->post_content);' . "\n"
-            . '            $tm_has_custom_header = true;' . "\n"
+            . '            $anyphefo_has_custom_header = true;' . "\n"
             . '        }' . "\n"
             . '    }' . "\n"
             . '}' . "\n\n"
-            . 'if (!$tm_has_custom_header) {' . "\n"
+            . 'if (!$anyphefo_has_custom_header) {' . "\n"
             . '    get_header();' . "\n"
             . '}' . "\n"
             . '?>' . "\n";
@@ -309,21 +316,21 @@ class TM_Template_Manager
             . '/**' . "\n"
             . ' * Custom Footer File' . "\n"
             . ' */' . "\n\n"
-            . '$tm_has_custom_footer = false;' . "\n\n"
+            . '$anyphefo_has_custom_footer = false;' . "\n\n"
             . 'if (' . $footer_id . ') {' . "\n"
-            . '    $tm_document = class_exists(\'\Elementor\Plugin\') ? \Elementor\Plugin::instance()->documents->get(' . $footer_id . ') : null;' . "\n\n"
-            . '    if ($tm_document && $tm_document->is_built_with_elementor()) {' . "\n"
+            . '    $anyphefo_document = class_exists(\'\Elementor\Plugin\') ? \Elementor\Plugin::instance()->documents->get(' . $footer_id . ') : null;' . "\n\n"
+            . '    if ($anyphefo_document && $anyphefo_document->is_built_with_elementor()) {' . "\n"
             . '        echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display(' . $footer_id . ');' . "\n"
-            . '        $tm_has_custom_footer = true;' . "\n"
+            . '        $anyphefo_has_custom_footer = true;' . "\n"
             . '    } else {' . "\n"
             . '        $footer_post = get_post(' . $footer_id . ');' . "\n"
             . '        if ($footer_post instanceof WP_Post) {' . "\n"
             . '            echo apply_filters(\'the_content\', $footer_post->post_content);' . "\n"
-            . '            $tm_has_custom_footer = true;' . "\n"
+            . '            $anyphefo_has_custom_footer = true;' . "\n"
             . '        }' . "\n"
             . '    }' . "\n"
             . '}' . "\n\n"
-            . 'if (!$tm_has_custom_footer) {' . "\n"
+            . 'if (!$anyphefo_has_custom_footer) {' . "\n"
             . '    get_footer();' . "\n"
             . '}' . "\n"
             . '?>' . "\n"

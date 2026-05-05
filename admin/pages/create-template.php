@@ -17,9 +17,9 @@ $success_message = '';
 $editing_slug = '';
 $is_edit_mode = false;
 
-$available_headers = tm_get_available_headers();
-$available_footers = tm_get_available_footers();
-$existing_templates = tm_get_registered_templates();
+$available_headers = anyphefo_get_available_headers();
+$available_footers = anyphefo_get_available_footers();
+$existing_templates = anyphefo_get_registered_templates();
 
 $selected_header_label = __('Default', 'anypage-header-footer-for-elementor');
 foreach ($available_headers as $header) {
@@ -68,7 +68,7 @@ if (
 if (
     isset($_POST['tm_submit_template'])
     && current_user_can('manage_options')
-    && check_admin_referer('tm_create_template', 'tm_nonce')
+    && check_admin_referer('anyphefo_create_template', 'anyphefo_nonce')
 ) {
     $template_name = esc_html(sanitize_text_field(wp_unslash($_POST['tm_template_name'] ?? '')));
     $header_id = esc_attr(absint(wp_unslash($_POST['tm_header_id'] ?? 0)));
@@ -107,7 +107,7 @@ if (
     }
 
     if (empty($errors)) {
-        $db_templates = get_option('tm_database_templates', []);
+        $db_templates = anyphefo_get_database_templates();
 
         if ($is_edit_mode && $existing_template) {
             unset($db_templates[$editing_slug]);
@@ -119,7 +119,7 @@ if (
             'footer_id' => $footer_id,
         );
 
-        update_option('tm_database_templates', $db_templates);
+        anyphefo_update_database_templates($db_templates);
         $success_message = $is_edit_mode
             ? esc_html__('Template updated.', 'anypage-header-footer-for-elementor')
             : esc_html__('Template saved.', 'anypage-header-footer-for-elementor');
@@ -133,7 +133,7 @@ if (
         $editing_slug = '';
         $is_edit_mode = false;
         $open_modal = false;
-        $existing_templates = tm_get_registered_templates();
+        $existing_templates = anyphefo_get_registered_templates();
         $templates_by_slug = array();
         foreach ($existing_templates as $template) {
             $templates_by_slug[$template['slug']] = $template;
@@ -150,19 +150,19 @@ if (
 ) {
     $template_slug = sanitize_file_name(wp_unslash($_GET['template']));
 
-    if (wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'tm_delete_template_' . $template_slug)) {
-        $db_templates = get_option('tm_database_templates', []);
+    if (wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce'])), 'anyphefo_delete_template_' . $template_slug)) {
+        $db_templates = anyphefo_get_database_templates();
 
         if (isset($db_templates[$template_slug])) {
             unset($db_templates[$template_slug]);
-            update_option('tm_database_templates', $db_templates);
+            anyphefo_update_database_templates($db_templates);
             /* translators: %s: Template name */
             $success_message = esc_html__('Template removed.', 'anypage-header-footer-for-elementor');
         } else {
             $errors[] = esc_html__('Only database templates can be deleted from this screen.', 'anypage-header-footer-for-elementor');
         }
 
-        $existing_templates = tm_get_registered_templates();
+        $existing_templates = anyphefo_get_registered_templates();
         $templates_by_slug = array();
         foreach ($existing_templates as $template) {
             $templates_by_slug[$template['slug']] = $template;
@@ -202,12 +202,12 @@ if (!empty($existing_templates)) {
         ";
     $args = array_merge($template_slugs, $post_types);
 
-    $cache_key = 'tm_usage_' . md5(implode(',', $args));
-    $usage_rows = wp_cache_get($cache_key, 'tm_templates');
+    $cache_key = 'anyphefo_usage_' . md5(implode(',', $args));
+    $usage_rows = wp_cache_get($cache_key, 'anyphefo_templates');
     if (false === $usage_rows) {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.NoCaching
         $usage_rows = $wpdb->get_results($wpdb->prepare($sql, ...$args), ARRAY_A);
-        wp_cache_set($cache_key, $usage_rows, 'tm_templates', 300);
+        wp_cache_set($cache_key, $usage_rows, 'anyphefo_templates', 300);
     }
 
     foreach ($template_slugs as $slug) {
@@ -248,7 +248,7 @@ if (!empty($existing_templates)) {
 }
 
 $per_page = 8;
-$current_page = isset($_GET['tm_page']) ? max(1, absint($_GET['tm_page'])) : 1;
+$current_page = isset($_GET['anyphefo_page']) ? max(1, absint($_GET['anyphefo_page'])) : 1;
 $total_templates = count($existing_templates);
 $total_pages = max(1, (int) ceil($total_templates / $per_page));
 
@@ -259,12 +259,34 @@ if ($current_page > $total_pages) {
 $offset = ($current_page - 1) * $per_page;
 $paged_templates = array_slice($existing_templates, $offset, $per_page);
 
-$pagination_base = remove_query_arg(array('tm_page', 'action', 'template', '_wpnonce'));
+$pagination_base = remove_query_arg(array('anyphefo_page', 'action', 'template', '_wpnonce'));
 $existing_template_slugs = array_map(
     static function ($item) {
         return (string) $item['slug'];
     },
     $existing_templates
+);
+
+wp_add_inline_script(
+    'anyphefo-admin-script',
+    'window.anyphefoAdminConfig = ' . wp_json_encode(
+        array(
+            'usageMap' => $template_usage_map,
+            'strings'  => array(
+                'duplicateTemplateName' => __('Template name already exists.', 'anypage-header-footer-for-elementor'),
+                'addTemplate'           => __('Add Template', 'anypage-header-footer-for-elementor'),
+                'createTemplate'        => __('Create Template', 'anypage-header-footer-for-elementor'),
+                'editTemplate'          => __('Edit Template', 'anypage-header-footer-for-elementor'),
+                'saveChanges'           => __('Save Changes', 'anypage-header-footer-for-elementor'),
+                'defaultStatusLabel'    => __('Publish', 'anypage-header-footer-for-elementor'),
+                'noContentInFilter'     => __('No content in this filter.', 'anypage-header-footer-for-elementor'),
+                'edit'                  => __('Edit', 'anypage-header-footer-for-elementor'),
+                'all'                   => __('All', 'anypage-header-footer-for-elementor'),
+                'postLabel'             => __('Post', 'anypage-header-footer-for-elementor'),
+            ),
+        )
+    ) . ';',
+    'before'
 );
 
 ?>
@@ -383,10 +405,10 @@ $existing_template_slugs = array_map(
                                             </button>
                                             <a
                                                 class="tm-icon-btn danger"
-                                                href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=tm-templates&action=delete&template=' . rawurlencode($template['slug'])), 'tm_delete_template_' . $template['slug'])); ?>"
+                                                href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=anyphefo-templates&action=delete&template=' . rawurlencode($template['slug'])), 'anyphefo_delete_template_' . $template['slug'])); ?>"
                                                 aria-label="<?php echo esc_attr(sprintf(/* translators: %s: Template name */__('Delete %s', 'anypage-header-footer-for-elementor'), esc_html($template['name']))); ?>"
                                                 title="<?php echo esc_attr__('Delete template', 'anypage-header-footer-for-elementor'); ?>"
-                                                onclick="return confirm('<?php echo esc_js(__('Delete this template?', 'anypage-header-footer-for-elementor')); ?>');">
+                                                data-confirm-message="<?php echo esc_attr__('Delete this template?', 'anypage-header-footer-for-elementor'); ?>">
                                                 <span class="dashicons dashicons-trash"></span>
                                             </a>
                                         <?php else : ?>
@@ -404,7 +426,7 @@ $existing_template_slugs = array_map(
                         <?php
                         echo wp_kses_post(
                             paginate_links(array(
-                                'base' => add_query_arg('tm_page', '%#%', $pagination_base),
+                                'base' => add_query_arg('anyphefo_page', '%#%', $pagination_base),
                                 'format' => '',
                                 'current' => $current_page,
                                 'total' => $total_pages,
@@ -432,7 +454,7 @@ $existing_template_slugs = array_map(
             </div>
 
             <form method="post" class="tm-modal-form" id="tm-template-form" data-existing-slugs="<?php echo esc_attr(wp_json_encode($existing_template_slugs)); ?>">
-                <?php wp_nonce_field('tm_create_template', 'tm_nonce'); ?>
+                <?php wp_nonce_field('anyphefo_create_template', 'anyphefo_nonce'); ?>
                 <input type="hidden" name="tm_editing_slug" id="tm_editing_slug" value="<?php echo esc_attr($editing_slug); ?>">
 
                 <div class="tm-field-grid">
@@ -531,417 +553,3 @@ $existing_template_slugs = array_map(
     </div>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const usageMap = <?php echo wp_json_encode($template_usage_map); ?>;
-        const modal = document.querySelector('.tm-modal');
-        const usageModal = document.querySelector('.tm-usage-modal');
-        const templateForm = document.getElementById('tm-template-form');
-        const hiddenInput = document.getElementById('tm_storage_type_input');
-        const closeButtons = document.querySelectorAll('[data-tm-close-modal]');
-        const openButtons = document.querySelectorAll('[data-tm-open-modal]');
-        const usageOpenButtons = document.querySelectorAll('[data-tm-usage-open="1"]');
-        const usageCloseButtons = document.querySelectorAll('[data-tm-usage-close]');
-        const usageList = document.getElementById('tm-usage-list');
-        const usageEmpty = document.getElementById('tm-usage-empty');
-        const usageFilters = document.getElementById('tm-usage-filters');
-        const usageSubtitle = document.getElementById('tm-usage-subtitle');
-        const editingSlugInput = document.getElementById('tm_editing_slug');
-        const templateNameInput = document.getElementById('tm_template_name');
-        const headerSelect = document.getElementById('tm_header_id');
-        const footerSelect = document.getElementById('tm_footer_id');
-        const headerDisplay = document.getElementById('tm_header_display');
-        const footerDisplay = document.getElementById('tm_footer_display');
-        const submitLabel = document.getElementById('tm_submit_label');
-        const modalTitle = document.getElementById('tm-modal-title');
-        const templateNameError = document.getElementById('tm_template_name_error');
-        let existingTemplateSlugs = [];
-
-        try {
-            existingTemplateSlugs = JSON.parse(templateForm ? (templateForm.dataset.existingSlugs || '[]') : '[]');
-        } catch (error) {
-            existingTemplateSlugs = [];
-        }
-        const usageState = {
-            items: [],
-            filter: 'all'
-        };
-
-        function slugifyTemplateName(name) {
-            const normalized = name
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '');
-
-            return normalized ? ('template-cu-' + normalized + '.php') : 'template-cu-custom-template.php';
-        }
-
-        function validateTemplateNameDuplicate() {
-            if (!templateNameInput || !templateNameError) {
-                return true;
-            }
-
-            const rawName = templateNameInput.value.trim();
-            if (rawName === '') {
-                templateNameError.textContent = '';
-                templateNameInput.classList.remove('tm-input-invalid');
-                return true;
-            }
-
-            const generatedSlug = slugifyTemplateName(rawName);
-            const editingSlug = editingSlugInput ? editingSlugInput.value : '';
-            const isDuplicate = existingTemplateSlugs.includes(generatedSlug) && generatedSlug !== editingSlug;
-
-            if (isDuplicate) {
-                templateNameError.textContent = 'Template name already exists.';
-                templateNameInput.classList.add('tm-input-invalid');
-                return false;
-            }
-
-            templateNameError.textContent = '';
-            templateNameInput.classList.remove('tm-input-invalid');
-            return true;
-        }
-
-        function getComboboxState(name) {
-            return {
-                box: document.querySelector('[data-tm-combobox="' + name + '"]'),
-                hidden: document.getElementById('tm_' + name + '_id'),
-                input: document.getElementById('tm_' + name + '_display'),
-                menu: document.getElementById('tm_' + name + '_menu')
-            };
-        }
-
-        function setComboboxValue(name, idValue) {
-            const state = getComboboxState(name);
-            if (!state.hidden || !state.input || !state.menu) {
-                return;
-            }
-
-            const targetId = String(idValue);
-            const options = state.menu.querySelectorAll('.tm-combobox-option');
-            let selectedTitle = '';
-
-            options.forEach(function(option) {
-                const isMatch = option.getAttribute('data-id') === targetId;
-                option.classList.toggle('is-selected', isMatch);
-                if (isMatch) {
-                    selectedTitle = option.getAttribute('data-title') || option.textContent.trim();
-                }
-            });
-
-            if (selectedTitle === '' && options.length > 0) {
-                selectedTitle = options[0].getAttribute('data-title') || options[0].textContent.trim();
-                state.hidden.value = options[0].getAttribute('data-id') || '0';
-            } else {
-                state.hidden.value = targetId;
-            }
-
-            state.input.value = state.hidden.value === '0' ? '' : selectedTitle;
-        }
-
-        function initCombobox(name) {
-            const state = getComboboxState(name);
-            if (!state.box || !state.hidden || !state.input || !state.menu) {
-                return;
-            }
-
-            const options = state.menu.querySelectorAll('.tm-combobox-option');
-
-            function openMenu() {
-                state.box.classList.add('is-open');
-            }
-
-            function closeMenu() {
-                state.box.classList.remove('is-open');
-            }
-
-            function filterOptions() {
-                const query = state.input.value.toLowerCase().trim();
-                options.forEach(function(option) {
-                    const title = (option.getAttribute('data-title') || '').toLowerCase();
-                    option.hidden = query !== '' && !title.includes(query);
-                });
-            }
-
-            state.input.addEventListener('focus', function() {
-                filterOptions();
-                openMenu();
-            });
-
-            state.input.addEventListener('input', function() {
-                filterOptions();
-                openMenu();
-            });
-
-            options.forEach(function(option) {
-                option.addEventListener('click', function() {
-                    setComboboxValue(name, option.getAttribute('data-id') || '0');
-                    closeMenu();
-                });
-            });
-
-            document.addEventListener('click', function(event) {
-                if (!state.box.contains(event.target)) {
-                    closeMenu();
-                }
-            });
-
-            setComboboxValue(name, state.hidden.value || '0');
-        }
-
-        function resetEditMode() {
-            editingSlugInput.value = '';
-            modalTitle.textContent = 'Add Template';
-            submitLabel.textContent = 'Create Template';
-            templateNameInput.value = '';
-            setComboboxValue('header', '0');
-            setComboboxValue('footer', '0');
-            if (hiddenInput) {
-                hiddenInput.value = 'database';
-            }
-            validateTemplateNameDuplicate();
-        }
-
-        function setEditModeFromButton(button) {
-            const isEditing = button.getAttribute('data-editing') === '1';
-            if (!isEditing) {
-                resetEditMode();
-                return;
-            }
-
-            editingSlugInput.value = button.getAttribute('data-template-slug') || '';
-            templateNameInput.value = button.getAttribute('data-template-name') || '';
-            setComboboxValue('header', button.getAttribute('data-header-id') || '0');
-            setComboboxValue('footer', button.getAttribute('data-footer-id') || '0');
-            if (hiddenInput) {
-                hiddenInput.value = 'database';
-            }
-
-            modalTitle.textContent = 'Edit Template';
-            submitLabel.textContent = 'Save Changes';
-            validateTemplateNameDuplicate();
-        }
-
-        function openModal() {
-            if (!modal) {
-                return;
-            }
-            modal.setAttribute('data-state', 'open');
-            modal.setAttribute('aria-hidden', 'false');
-            modal.classList.remove('is-closing');
-            modal.classList.add('is-entering');
-            document.body.classList.add('tm-modal-open');
-
-            setTimeout(function() {
-                modal.classList.remove('is-entering');
-            }, 180);
-        }
-
-        function closeModal() {
-            if (!modal || modal.getAttribute('data-state') !== 'open') {
-                return;
-            }
-
-            modal.classList.remove('is-entering');
-            modal.classList.add('is-closing');
-            modal.setAttribute('aria-hidden', 'true');
-
-            setTimeout(function() {
-                modal.setAttribute('data-state', 'closed');
-                modal.classList.remove('is-closing');
-                document.body.classList.remove('tm-modal-open');
-                const url = new URL(window.location.href);
-                url.searchParams.delete('action');
-                url.searchParams.delete('template');
-                window.history.replaceState({}, '', url);
-            }, 140);
-        }
-
-        function toStatusLabel(status) {
-            if (!status) {
-                return 'publish';
-            }
-
-            const normalized = String(status).replace(/-/g, ' ');
-            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-        }
-
-        function renderUsageList() {
-            if (!usageList || !usageEmpty) {
-                return;
-            }
-
-            const items = usageState.items.filter(function(item) {
-                return usageState.filter === 'all' || item.post_type === usageState.filter;
-            });
-
-            usageList.innerHTML = '';
-
-            if (items.length === 0) {
-                usageEmpty.style.display = 'block';
-                usageEmpty.textContent = 'No content in this filter.';
-                return;
-            }
-
-            usageEmpty.style.display = 'none';
-
-            items.forEach(function(item) {
-                const li = document.createElement('li');
-                li.className = 'tm-usage-item';
-
-                const titleWrap = document.createElement('div');
-                titleWrap.className = 'tm-usage-item-main';
-
-                const title = document.createElement('strong');
-                title.textContent = item.title || '';
-                titleWrap.appendChild(title);
-
-                const meta = document.createElement('span');
-                meta.className = 'tm-usage-item-meta';
-                meta.textContent = (item.type || 'Post') + ' - ' + toStatusLabel(item.status);
-                titleWrap.appendChild(meta);
-
-                li.appendChild(titleWrap);
-
-                if (item.edit_link) {
-                    const action = document.createElement('a');
-                    action.href = item.edit_link;
-                    action.className = 'tm-usage-edit';
-                    action.textContent = '<?php echo esc_js(__('Edit', 'anypage-header-footer-for-elementor')); ?>';
-                    li.appendChild(action);
-                }
-
-                usageList.appendChild(li);
-            });
-        }
-
-        function renderUsageFilters() {
-            if (!usageFilters) {
-                return;
-            }
-
-            usageFilters.innerHTML = '';
-
-            const allButton = document.createElement('button');
-            allButton.type = 'button';
-            allButton.className = 'tm-usage-filter' + (usageState.filter === 'all' ? ' is-active' : '');
-            allButton.textContent = 'All';
-            allButton.addEventListener('click', function() {
-                usageState.filter = 'all';
-                renderUsageFilters();
-                renderUsageList();
-            });
-            usageFilters.appendChild(allButton);
-
-            const types = {};
-            usageState.items.forEach(function(item) {
-                if (!types[item.post_type]) {
-                    types[item.post_type] = item.type || item.post_type;
-                }
-            });
-
-            Object.keys(types).forEach(function(postTypeKey) {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'tm-usage-filter' + (usageState.filter === postTypeKey ? ' is-active' : '');
-                button.textContent = types[postTypeKey];
-                button.addEventListener('click', function() {
-                    usageState.filter = postTypeKey;
-                    renderUsageFilters();
-                    renderUsageList();
-                });
-                usageFilters.appendChild(button);
-            });
-        }
-
-        function openUsageModal(templateSlug, templateName) {
-            if (!usageModal || !usageList || !usageEmpty || !usageSubtitle) {
-                return;
-            }
-
-            usageState.items = Array.isArray(usageMap[templateSlug]) ? usageMap[templateSlug] : [];
-            usageState.filter = 'all';
-            usageSubtitle.textContent = templateName;
-            renderUsageFilters();
-            renderUsageList();
-
-            usageModal.setAttribute('data-state', 'open');
-            usageModal.setAttribute('aria-hidden', 'false');
-        }
-
-        function closeUsageModal() {
-            if (!usageModal) {
-                return;
-            }
-
-            usageModal.setAttribute('data-state', 'closed');
-            usageModal.setAttribute('aria-hidden', 'true');
-        }
-
-        openButtons.forEach(function(button) {
-            button.addEventListener('click', function() {
-                if (button.getAttribute('data-editing') === '1') {
-                    setEditModeFromButton(button);
-                } else {
-                    resetEditMode();
-                }
-                openModal();
-            });
-        });
-
-        closeButtons.forEach(function(button) {
-            button.addEventListener('click', closeModal);
-        });
-
-        usageOpenButtons.forEach(function(button) {
-            button.addEventListener('click', function() {
-                openUsageModal(
-                    button.getAttribute('data-template-slug') || '',
-                    button.getAttribute('data-template-name') || ''
-                );
-            });
-        });
-
-        usageCloseButtons.forEach(function(button) {
-            button.addEventListener('click', closeUsageModal);
-        });
-
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                if (usageModal && usageModal.getAttribute('data-state') === 'open') {
-                    closeUsageModal();
-                } else {
-                    closeModal();
-                }
-            }
-        });
-
-        initCombobox('header');
-        initCombobox('footer');
-
-        if (templateNameInput) {
-            templateNameInput.addEventListener('input', validateTemplateNameDuplicate);
-            templateNameInput.addEventListener('blur', validateTemplateNameDuplicate);
-            validateTemplateNameDuplicate();
-        }
-
-        if (templateForm) {
-            templateForm.addEventListener('submit', function(event) {
-                if (!validateTemplateNameDuplicate()) {
-                    event.preventDefault();
-                }
-            });
-        }
-
-        if (hiddenInput) {
-            hiddenInput.value = 'database';
-        }
-
-        if (modal && modal.getAttribute('data-state') === 'open') {
-            document.body.classList.add('tm-modal-open');
-        }
-    });
-</script>

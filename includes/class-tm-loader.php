@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
 /**
  * Template Manager Loader
  */
-class TM_Loader {
+class Anyphefo_Loader {
 
     private static $instance = null;
 
@@ -36,9 +36,9 @@ class TM_Loader {
      */
     private function init_hooks() {
         // Load the template manager class
-        add_action('init', array(TM_Template_Manager::class, 'init'), 1);
+        add_action('init', array(Anyphefo_Template_Manager::class, 'init'), 1);
     }
 }
 
 // Initialize loader
-TM_Loader::get_instance();
+Anyphefo_Loader::get_instance();
